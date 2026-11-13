@@ -1,0 +1,41 @@
+# SHA-256 manifest
+
+Every hash below was measured with `sha256sum` and copied verbatim. Lines marked "in this
+repository" can be re-verified against the clone; lines marked "not in this repository" identify
+binaries that stay on the build host, so the hash is the only public handle on them.
+
+## In this repository
+
+1044adfe0028bd0a5b7e95529a4a6bc90251563d6fec79fd3439c61ac6db7c2a  flash/misc-bcb-fb.img
+aa1d74cc5dbe697984e5b0389e399ea04a0741ed30b0509e505dacb3420172fe  examples/header251.txt
+256219fc32fb1df59e160e7fee24307405083ed361fb3f5ef2dda478545f5ae2  scripts/apfs_volume_uuid.py
+2dd9c95890ac161bb7a04bcb72185a20f94af478a25c1eed4d622f145685a150  scripts/build-diag250.sh
+c8906b441e4c17a5261e9b2bfede4abc517438b3e8663b368b9f5eb530c2390b  scripts/chain250.sh
+f64e2b96dc2c3f9edaa1e22fb5c7206869dd67fef1e1ed289328aaad2ba47358  scripts/chain251.sh
+b08d4609be52749d3fdfd23ad8d92a05d7bacac15d5adc31a76794bb15a4737a  scripts/hwgrab.sh
+
+## Release asset on this repository
+
+3571667e4abfc1597c9e29b4cfcb72fa48025dd06c6bc406c717c880dcbce8c4  data-seed250-gpt70.img  74481664 bytes
+
+## Not in this repository, hash only
+
+8b510aa4f4aac89b168b674783593bf6c793396efc12d1e78317671b23b890e3  boot-m5c-diag250.img  136474624 bytes
+ef2a16bc1db7ebfae05c67317a1fcc2fa24f75fa4e3c93aa4e26a7a648cb6598  boot-m5c-diag251.img  136474624 bytes
+526415af...  kernel.macho  51417088 bytes  (round 250; round 250 changed the payload only)
+97fd10533a533bdc50541db4992f75cf7953c05812c5e7b79277c06cfab9f3e9  kernel.macho  51417088 bytes  (round 251)
+90de857cad3db998ed75d574307ff3fd712a6dc101d83411d000aec2fba47638  userdata-m5b.simg  3187697912 bytes
+
+Notes:
+
+- `kernel.macho` is not byte-reproducible at our pin, so its hash identifies the exact binary that
+  went into that round's boot image, recorded before the board was fired; it cannot be re-derived
+  from source.
+- `boot-m5c-diag250.img` carries the `kernel.macho` of round 247 unchanged, because round 250 only
+  swapped the Data seed.
+- Both boot images were hashed on the build host and again on the firing host after `scp`, and the
+  two values are equal character for character.
+- `data-seed250-gpt70.img` is also the value recorded as `data_ramdisk_sha256` inside
+  `payload.json` for rounds 250 and 251.
+- `526415af...` is abbreviated on purpose: only the short form is in the round log, so a full hash
+  would be an unverified claim.

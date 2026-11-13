@@ -31,6 +31,24 @@ English version: **[README.md](README.md)**
 | 跳回 | 宕机之后板子重新回到 fastboot 的那个时刻 |
 | provider／publisher | XNU 的 IOReport 机制的两半（苹果自己的命名） |
 
+### 这个仓库里有什么
+
+| 路径 | |
+| --- | --- |
+| `README.md`、`README.zh.md` | 本报告，中英各一份 |
+| `FLASHING.md`、`FLASHING.zh.md` | 一轮在设备上真正写了什么、发火前的预检、实测时间，以及 Data 种子的纯 Linux 做法 |
+| `scripts/` | 一轮的构建脚本、两轮的发火脚本、拍照脚本、APFS volume UUID 读取脚本——全部逐字复制，绝对路径也照抄，所以它们是存档记录，不是一套能直接跑的套件 |
+| `flash/misc-bcb-fb.img` | 每轮写进 `misc` 的那 2,048 字节 BCB |
+| `examples/header251.txt` | 一份「发火前就写死」的判据表 |
+| `figures/` | 两张宕机屏照片 ＋ 交给读图端点的那张裁剪（第 4 节） |
+| `manifest-sha256.txt` | 本仓库发布物的 SHA-256，加上留在构建机上没发出去的那几颗二进制（`kernel.macho`／bootimg 等）的哈希 |
+| Release `v250` | `data-seed250-gpt70.img`，74,481,664 字节——就是第 7 节那一轮用的 Data 种子，由 `FLASHING.md` 第 6 节的纯 Linux 做法造出来 |
+
+没发出来的：前 250 轮的 234 颗中间 bootimg（共 29 GB；单颗 136,474,624 字节，超过 git 托管方
+单文件 100 MB 限制），以及 9,382,658,048 字节的 `userdata` 备份。这几样在
+`manifest-sha256.txt` 里给哈希，在 `FLASHING.md` 第 5 节里给当时产出它们的命令——附带一条限制：
+内核构建不是字节可复现的，所以哈希标识的是一颗二进制，不代表「源码到二进制」的可复现保证。
+
 ---
 
 ## 1. 我们这套东西是什么
@@ -39,7 +57,7 @@ English version: **[README.md](README.md)**
 | --- | --- |
 | 板子 | 代号 `warsaw`，SoC **SM8750 / `qcom,sun`**（活的设备树里逐字写着 `Qualcomm … Warsaw based on SM8750`） |
 | 系统版本 | **iPadOS 17.7.11 (21H461)**，内核集合源码自编，上游 pin `82b847c`（2026-11-04） |
-| 启动方式 | `fastboot boot <bootimg>` 纯 RAM 启动。唯一真被写过的分区是 `misc`（BCB）；`boot`／`vendor_boot` 从没动过，随时把安卓原样开回来 |
+| 启动方式 | `fastboot boot <bootimg>` 纯 RAM 启动。真被写过的分区＝`misc`（BCB，多数轮次）＋ `userdata`（1 次，2026-11-07，动手前先把整块 `userdata` dump 成 9,382,658,048 B 当备份）；`boot`／`vendor_boot` 与其余 A/B 分区从没动过，用 `fastboot erase misc` 清掉 BCB 就能把安卓原样开回来 |
 | 构建机 | 普通 Ubuntu 26.04（内核 7.0.0-42），**整条链路上没有 Mac** |
 | 控制台 | **没有可用的。**宕机报表屏是唯一的输出通道（见第 4 节） |
 | 一轮成本 | 构建 ≈1 分钟（实测两个 `.c` 走完 内核＋payload＋bootimg 共 63 秒，零 warning）＋板子 ≈50 分钟 |

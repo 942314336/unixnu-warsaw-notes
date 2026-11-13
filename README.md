@@ -35,6 +35,25 @@ believed for a week:
 | hop | the moment the board returns to fastboot after the panic |
 | provider / publisher | the two halves of XNU's IOReport mechanism (Apple's own terms) |
 
+### What is in this repository
+
+| Path | |
+| --- | --- |
+| `README.md`, `README.zh.md` | this report, English and Chinese |
+| `FLASHING.md`, `FLASHING.zh.md` | what one round writes on the device, the preflight checks, the measured timings, and the Linux-only recipe for the Data seed |
+| `scripts/` | the build script of one round, the two per-round firing scripts, the camera-capture script, and the APFS volume-UUID reader — all verbatim copies, paths included, so they are records rather than a runnable kit |
+| `flash/misc-bcb-fb.img` | the 2,048-byte BCB every round writes into `misc` |
+| `examples/header251.txt` | one pre-registered verdict sheet, written before that round was fired |
+| `figures/` | the two photographed screens and the crop handed to the vision endpoint (§4) |
+| `manifest-sha256.txt` | SHA-256 of everything published here, plus the hashes of the binaries that stay on the build host |
+| Release `v250` | `data-seed250-gpt70.img`, 74,481,664 bytes — the Data seed of the round-250 experiment (§7), produced by the Linux-only recipe in `FLASHING.md` §6 |
+
+Not published: the 234 intermediate boot images from rounds up to 250 (29 GB; one image is
+136,474,624 bytes, above the 100 MB per-file limit a git host enforces) and the 9,382,658,048-byte
+backup of `userdata`. For those, `manifest-sha256.txt` gives the hash and `FLASHING.md` §5 gives the
+command that produced them — with the caveat that the kernel build is not byte-reproducible, so the
+hash identifies a binary rather than a source-to-binary guarantee.
+
 ---
 
 ## 1. What the setup is
@@ -43,7 +62,7 @@ believed for a week:
 | --- | --- |
 | Board | device codename `warsaw`, SoC **SM8750 / `qcom,sun`** (the live device tree says `Qualcomm … Warsaw based on SM8750`) |
 | OS build | **iPadOS 17.7.11 (21H461)**, kernel collection built from source, upstream pin `82b847c` (2026-11-04) |
-| Boot method | `fastboot boot <bootimg>` — RAM boot. The only partition ever written is `misc` (BCB); `boot` / `vendor_boot` untouched, Android boots unchanged when we are done |
+| Boot method | `fastboot boot <bootimg>` — RAM boot. Partitions we actually wrote: `misc` (the BCB, most rounds) and `userdata` once, on 2026-11-07, after a full 9,382,658,048-byte dump of that partition had been taken as a backup. `boot`, `vendor_boot` and the rest of the A/B set were never written, so clearing the BCB with `fastboot erase misc` returns the board to stock Android |
 | Build host | plain Ubuntu 26.04 box (kernel 7.0.0-42), **no Mac in the loop** |
 | Console | **none usable.** The panic screen is the only output channel (§4) |
 | Round cost | build ≈ 1 min (measured 63 s for two `.c` files through kernel + payload + bootimg, zero warnings) + board ≈ 50 min |
