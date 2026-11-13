@@ -1,0 +1,3 @@
+chain*.log
+*.bak
+.DS_Store
