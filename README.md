@@ -46,7 +46,7 @@ believed for a week:
 | `examples/header251.txt` | one pre-registered verdict sheet, written before that round was fired |
 | `figures/` | the two photographed screens and the crop handed to the vision endpoint (§4) |
 | `manifest-sha256.txt` | SHA-256 of everything published here, plus the hashes of the binaries that stay on the build host |
-| Release `v250` | `data-seed250-gpt70.img`, 74,481,664 bytes — the Data seed of the round-250 experiment (§7), produced by the Linux-only recipe in `FLASHING.md` §6 |
+| Release `v250` | `data-seed250-gpt70.img.gz`, 87,005 bytes — `gunzip` gives the Data seed of the round-250 experiment (§7), produced by the Linux-only recipe in `FLASHING.md` §6. The asset is gzipped because the upload widget refuses the `.img` suffix |
 
 Not published: the 234 intermediate boot images from rounds up to 250 (29 GB; one image is
 136,474,624 bytes, above the 100 MB per-file limit a git host enforces) and the 9,382,658,048-byte

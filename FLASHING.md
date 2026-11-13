@@ -110,7 +110,7 @@ UUIDs, which is how the pin in point 6 is checked before a build.
 
 | Artefact | Bytes | Where |
 | --- | --- | --- |
-| `data-seed250-gpt70.img` | 74,481,664 | Release asset on this repository |
+| `data-seed250-gpt70.img.gz` | 87,005 | Release asset of tag `v250` on this repository; `gunzip` gives the 74,481,664-byte `data-seed250-gpt70.img` |
 | `misc-bcb-fb.img` | 2,048 | `flash/misc-bcb-fb.img` in this repository |
 | `kernel.macho` | 51,417,088 | hash only (in `manifest-sha256.txt`) |
 | `boot-m5c-diag250.img`, `boot-m5c-diag251.img` | 136,474,624 each | hash only |
@@ -121,6 +121,17 @@ UUIDs, which is how the pin in point 6 is checked before a build.
 A single boot image is 136,474,624 bytes, above the 100 MB per-file limit that a git host enforces,
 and the 234 intermediate images total 29 GB, so boot images are published as a hash plus the build
 command above rather than as binaries.
+
+Two facts about the published seed:
+
+- The asset is gzipped because the upload widget refuses the `.img` suffix: it answers `We don't
+  support that file type.` and lists the accepted suffixes, among them `gz` and `zip`, with no
+  `.img`. `gunzip` restores the image byte for byte.
+- `gzip -9` turns 74,481,664 bytes into 87,005 bytes, 0.12 % of the image, because the container is
+  almost entirely zero-filled. That ratio is a property of the seed, not of the compression settings.
+
+The tag `v250` is an annotated tag on commit `c51d1b1`, pushed with `git push origin v250` before the
+release was published, because the form's tag picker had to be handed an existing ref.
 
 ## 8. One escape hatch we did not need yet
 

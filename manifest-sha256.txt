@@ -14,9 +14,13 @@ c8906b441e4c17a5261e9b2bfede4abc517438b3e8663b368b9f5eb530c2390b  scripts/chain2
 f64e2b96dc2c3f9edaa1e22fb5c7206869dd67fef1e1ed289328aaad2ba47358  scripts/chain251.sh
 b08d4609be52749d3fdfd23ad8d92a05d7bacac15d5adc31a76794bb15a4737a  scripts/hwgrab.sh
 
-## Release asset on this repository
+## Release asset, tag v250
 
-3571667e4abfc1597c9e29b4cfcb72fa48025dd06c6bc406c717c880dcbce8c4  data-seed250-gpt70.img  74481664 bytes
+3b768c3748a7306282b9ff5fb8fb531a18b1107b7529f2712b767c0f92a02b44  data-seed250-gpt70.img.gz  87005 bytes
+3571667e4abfc1597c9e29b4cfcb72fa48025dd06c6bc406c717c880dcbce8c4  data-seed250-gpt70.img    74481664 bytes  (after gunzip)
+
+The upload widget on this host refuses the `.img` suffix, so the published asset is the gzip file
+above. `gunzip` restores the second file byte for byte; the two hashes are what to check.
 
 ## Not in this repository, hash only
 

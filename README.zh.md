@@ -42,7 +42,7 @@ English version: **[README.md](README.md)**
 | `examples/header251.txt` | 一份「发火前就写死」的判据表 |
 | `figures/` | 两张宕机屏照片 ＋ 交给读图端点的那张裁剪（第 4 节） |
 | `manifest-sha256.txt` | 本仓库发布物的 SHA-256，加上留在构建机上没发出去的那几颗二进制（`kernel.macho`／bootimg 等）的哈希 |
-| Release `v250` | `data-seed250-gpt70.img`，74,481,664 字节——就是第 7 节那一轮用的 Data 种子，由 `FLASHING.md` 第 6 节的纯 Linux 做法造出来 |
+| Release `v250` | `data-seed250-gpt70.img.gz`，87,005 字节——`gunzip` 之后就是第 7 节那一轮用的 Data 种子，由 `FLASHING.md` 第 6 节的纯 Linux 做法造出来。资产之所以是 gzip 过的，是因为上传控件拒绝 `.img` 后缀 |
 
 没发出来的：前 250 轮的 234 颗中间 bootimg（共 29 GB；单颗 136,474,624 字节，超过 git 托管方
 单文件 100 MB 限制），以及 9,382,658,048 字节的 `userdata` 备份。这几样在

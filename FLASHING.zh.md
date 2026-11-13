@@ -100,7 +100,7 @@ fastboot -s b53c187d boot boot-m5c-diag250.img
 
 | 资料 | 字节 | 位置 |
 | --- | --- | --- |
-| `data-seed250-gpt70.img` | 74,481,664 | 本仓库的 Release 资产 |
+| `data-seed250-gpt70.img.gz` | 87,005 | 本仓库 tag `v250` 的 Release 资产；`gunzip` 得到 74,481,664 字节的 `data-seed250-gpt70.img` |
 | `misc-bcb-fb.img` | 2,048 | 本仓库 `flash/misc-bcb-fb.img` |
 | `kernel.macho` | 51,417,088 | 只给哈希（在 `manifest-sha256.txt` 里） |
 | `boot-m5c-diag250.img`、`boot-m5c-diag251.img` | 各 136,474,624 | 只给哈希 |
@@ -110,6 +110,16 @@ fastboot -s b53c187d boot boot-m5c-diag250.img
 
 单个 bootimg 是 136,474,624 字节，超过 git 托管方单文件 100 MB 限制；234 个中间镜像合计 29 GB。
 所以 bootimg 只发布哈希加上面那条构建命令，不发二进制。
+
+关于发布出去的这颗种子，两条事实：
+
+- 资产是 gzip 过的，因为上传控件拒绝 `.img` 后缀：它回 `We don't support that file type.`，
+  然后把接受的后缀列一遍，里面有 `gz` 和 `zip`，但没有 `.img`。`gunzip` 之后逐字节还原。
+- `gzip -9` 把 74,481,664 字节压成 87,005 字节，是原镜像的 0.12 %，因为这个容器几乎全是零填充。
+  这个比例是种子本身的性质，不是压缩参数带来的。
+
+tag `v250` 是指向 commit `c51d1b1` 的附注 tag，用 `git push origin v250` 先推上去，
+因为发布表单的 tag 选择器必须先有一个存在的 ref 可选。
 
 ## 8. 一个我们还没用上的出口
 
