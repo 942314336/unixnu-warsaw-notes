@@ -338,6 +338,67 @@ present in the shared cache, but the strings `AppleIOReport` and `IOReportSubscr
 slices carrying linkedit and symbol tables are the ones our extraction could not unpack. Closing that gap needs
 a live iOS device, not a Mac.
 
+## 7c. Rounds 276-287: a skipper we installed ourselves (the method, and what it found)
+
+First the units. One row of the report counts "how many failures share the busiest pc": that top cell has been
+**999** for as long as we have been reading it, and the whole boot window holds **2005** failures. Rounds
+276-287 exist to rebuild the question "what does 999 failures on one pc actually mean" one variable at a time.
+This section records the method first, then the findings.
+
+**The method (seven fixed steps; right-hand column = round 287 as measured)**
+
+| Step | What it is | Round 287, as measured |
+| --- | --- | --- |
+| 1 | Change **exactly one** behavioural input: one boot arg, one kernel patch, or one payload input | `kern_exec.c` only, three spots (format string, arguments, round tag); `kern_exit.c` untouched |
+| 2 | Freeze the decision before firing, in a file we then do not touch: a closed set K1..K5 that must include an "instrument broken" branch, plus structural controls and guards | `hdr287.txt` §5; afterwards append-only, thresholds may not move |
+| 3 | Prove the change really reached the image | SHA-256 identical on both ends after `scp`: `a534fcd3…c250`; 4 KiB block diff 3266/33319 fully attributed, 0 unexplained; seed region diff `[0, 0]`; boot-args window byte-identical to five earlier rounds |
+| 4 | Fire exactly once | `fired 01:14:17`, `el=3` |
+| 5 | Photograph 14 time points in three crop geometries, without pre-deciding which render window this boot uses | `fired→hop` 50 min 44 s; the report page was drawn between `el` (2710, 2730] (photo byte-size drop of 381,701 bytes) |
+| 6 | Decide against the frozen closed set, then write the ledger entry | K1 |
+| 7 | Do one external search before the next round starts, and log it | `RESEARCH-LOG.md` Pass 119b |
+
+**Three things these twelve rounds produced**
+
+1. On that pc shared by 999 failures, the first recorded failure is a **user-space data access abort (`ESR` EC =
+   `0x24`) with a level-1 translation fault (DFSC = `0x05`) and a target address inside `(0, 0x1000)`** (decided in
+   round 286, address bucket reproduced in 287). The same round also produced a correction from our own source:
+   the first bucket on the `fb:` row is `fault_addr < 0x1000`, **not** `== 0`, so "all 2005 of these failures
+   target an address below `0x1000`" has been on screen since round 164 - we had been reading it as "address is
+   zero". External wording: DFSC `0b000101` in `ESR_EL1` = Translation fault, level 1 (ARMv8-A exception syndrome
+   register definition; the Linux kernel's `data_fault_code[]` table agrees).
+2. **Half of "these daemons stay alive for 50 minutes" is something we built.** In round 167 we installed a skipper
+   in `bsd/kern/kern_exit.c`: on this class of page fault it drops the signal and adds 4 to pc and keeps running,
+   for at most **2000** steps (`NATIVE_KSTEP_CAP`); past the cap nothing is skipped any more and every such abort
+   really delivers. Round 287 moved that counter out of column 25 (where it does not exist as far as the screen is
+   concerned) into the first 23 columns of a row, and read it for the first time: **exactly the cap**. The next
+   single variable is therefore already fixed: cap 2000 → 20000, and see whether the point where the board stops
+   (the `el` before it returns to fastboot, and the moment the report page is drawn) moves.
+3. Counting has an arithmetic boundary that rules one family of explanations out: `launchd` waits at least 10
+   seconds between two launches of the same service by default (the `ThrottleInterval` default in Apple's
+   `launchd.plist` manual page), so in a 3039-second window one service can come back at most ~300 times, and
+   "999 failures = 999 different processes hitting it once each" does not fit.
+
+One observation recorded without interpretation: the top cell has been **999, byte-identical, for ten boots in a
+row**, while the total drifts between 2004 and 2018. Under the rules in section 5 that entitles us neither to move
+the threshold nor to claim convergence; it only licenses another instrument change or another treatment value.
+
+**Three additions to the reading channel (measured, not designed)**
+
+- The weak-glyph table grows `e`↔`6` and `a`↔`e` next to the existing `w`→`c`/`n`, `b`↔`6`, `f`↔`4`, `6`↔`8`; and
+  inside a single frame **the label at the start of a row can drift as a whole** (this row's `cs:` came back as
+  `die:`), so a row's identity has to be anchored on a field name that is unique inside the row (for example
+  `k=`), never on the label.
+- The transcription endpoint also loops the same block back, or fills the answer with `*`, even for "one frame plus
+  one narrow question": a narrow question is not more stable than a full transcription. The only working defence is
+  "same crop geometry, at least two frames byte-identical".
+- A counter sitting in column 25 does not exist. The fourth cell of the `sc:` row (`k=`) sat there for more than ten
+  rounds and was never once rendered.
+
+**Still not ruled out**: which instruction this pc sits on. Round 284 named it, from a page number, as a `BL` in the
+shared cache (`MIME.framework + 0x23fb0`), and a `BL` does not touch the data path, which contradicts finding 1
+above. Now that the address bucket has reproduced, the pre-registered rule points at round 284's page number rather
+than at the ESR decode.
+
 ## 8. What we found in the ecosystem this week
 
 - **No peer with the same SoC has gotten past the stage we are at.** The closest peer (same OS build 21H461,
@@ -428,11 +489,15 @@ README — none of them is written from memory.
 | **iPadOS 17.7.11 (21H461) restore image**, `044-76040-038.dmg` | Apple | Apple's IPSW download index (Apple does not keep a stable versioned URL for it) | 21H461 | the OS payload, the userland binaries we inspect, and the `private/var` tree we copy |
 | **`hdiutil`, `diskutil`, `ioreg`** | Apple | shipped with macOS; manual archive <https://developer.apple.com/library/archive/documentation/Darwin/Reference/ManPages/> | macOS 27.0.1 / 26A434 on a Mac mini | the reference-system checks in §7a. Upstream's `make-data-seed.py` requires `hdiutil`; we replaced that step, not the script's contents |
 | **Huawei P50 Pro** (used as the camera) | Huawei | <https://consumer.huawei.com/en/phones/p50-pro/> | model `L2E0222401016332` | photographs the panic screen (§4) |
+| **Arm Architecture Reference Manual (AArch64)**, the EC/DFSC encodings of `ESR_EL1` | Arm | <https://developer.arm.com/documentation/ddi0487/latest/> | online version (we only use the EC `0x24` and DFSC `0b000101` entries) | turns the `e=24 s=05` read off the screen into "user-space data access abort + level-1 translation fault" (§7c finding 1) |
+| **Linux kernel `arch/arm64/mm/fault.c`, `data_fault_code[]`** | Linux kernel contributors | <https://github.com/torvalds/linux/blob/master/arch/arm64/mm/fault.c> | `master` branch, read only | the second lookup for the row above (`[5]` = level-1 translation fault); used only to cross-check the table, never as a decision criterion |
+| **`launchd.plist` manual page (`ThrottleInterval`)** | Apple | <https://developer.apple.com/library/archive/documentation/Darwin/Reference/ManPages/> | BSD manual page archive | the 10-second default behind the arithmetic bound in §7c finding 3 |
 
 What is ours and came from nobody: the reading-channel measurements in §4 and §6 items 11–13, the
 pre-registration format in §5, the seed/UUID ordering finding in §6 item 3, the payload-limit finding in item 4,
 the out-of-tree `apfs-dkms` recipe in item 8, the sanitizer link failure in item 9, and every number in §2, §3,
-§7 and §7b.
+§7 and §7b. The numbers in §7c are ours as well; of the three entries above we borrowed only two things - the
+names of those two ESR fields, and the 10-second `ThrottleInterval` default.
 
 Per-round ledger (1.45 MB, one entry per round: pre-registered closed set, control values, readings, verdict)
 available on request; the pre-registration header for a single round is ~7 KB and is probably the more useful
