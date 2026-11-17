@@ -2,7 +2,7 @@
 
 English version: **[README.md](README.md)**
 
-**九天，编号到 250 的上板轮次，每轮只改一个行为，一个改动实测约 51 分钟板时。**
+**十四天，编号到 315 的上板轮次，每轮只改一个行为，一个改动实测约 51 分钟板时。**
 下面所有数字都是量出来的，不是回忆出来的；同一个量在轮间变过的，把两个值都写上。文末第 10 节是
 完整的借鉴清单（作者＋地址＋版本）。
 
@@ -25,9 +25,11 @@ English version: **[README.md](README.md)**
 | 一轮 | 一次构建 ＋ 板子上跑一次 ＋ 读一次结果 |
 | 发火 | 用 `fastboot boot` 把编好的 `boot.img` 在板子上跑一次 |
 | Data 种子 | 我们交给 XNU 当作 Data 卷的那颗磁盘镜像 |
-| 报表页 | XNU 宕机时打印的那段固定报表；在屏上停留 300 秒 |
+| 报表页 | XNU 宕机时打印的那段固定报表；它在屏上停留的秒数由 panic code 决定（四档，见 7d 第 2 条） |
 | 控制台刷屏页 | 宕机之前的那一屏，画面里是不断重复的控制台输出 |
 | 对照值 | 期望值我们已经知道的格子，用来检验读数通道本身 |
+| 到达见证 | 用来证明「本轮改的东西真的进了板子」的几格；不逐字命中就不许判疗效 |
+| 停留（dwell） | `跳回 el − 渲染帧 el`；因为停留时长由 panic code 定值，它是一把不靠读图的尺子 |
 | 跳回 | 宕机之后板子重新回到 fastboot 的那个时刻 |
 | provider／publisher | XNU 的 IOReport 机制的两半（苹果自己的命名） |
 
@@ -48,6 +50,14 @@ English version: **[README.md](README.md)**
 单文件 100 MB 限制），以及 9,382,658,048 字节的 `userdata` 备份。这几样在
 `manifest-sha256.txt` 里给哈希，在 `FLASHING.md` 第 5 节里给当时产出它们的命令——附带一条限制：
 内核构建不是字节可复现的，所以哈希标识的是一颗二进制，不代表「源码到二进制」的可复现保证。
+
+**11-13 之后的 65 轮（第 251–315 轮）。**这些轮的中间 bootimg 同样没有发布，仍留在构建机上；它们的
+照片、发火前写死的判据表（`hdrNNN.txt`，发火后只许追加）和结案记录在同一个任务目录里，本报告只把结论
+搬过来（第 7d 节）。这条主线已于 **2026-11-17 暂停**（不是放弃：同一块板子、同一套流程，以后继续），
+暂停前把不可重生的部分备份成两份实物——构建机 `/home/dong/backup/warsaw-20261117/`（12 MB，62 行清单，
+含 20 颗子模块的差异与 127 MB 内核工作树的二进制差异），以及 Windows 侧 112,635,500 字节的文本快照加
+5,104,642 字节的记录快照（两份都回拷进了构建机的备份目录）。**备份之后设备侧零写入**：主线暂停期间的
+第一批实验全部在构建机上完成，板子只等一次纯读的分区表快照。
 
 ---
 
@@ -345,6 +355,38 @@ English version: **[README.md](README.md)**
 （`MIME.framework + 0x23fb0`），而 `BL` 不碰数据面，与上面第 1 条冲突；地址桶复现之后，按预登记的规则，
 现在优先怀疑的是第 284 轮那个页号，不是 ESR 的解码。
 
+## 7d. 第 288–315 轮：战线从「谁在崩」搬到「Data 里到底装了什么」
+
+第 288 轮把第 7c 节那个跳过器的上限从 2000 抬到 20000，第 289 轮把它整个关死作总负对照。结论是第 7c 节那条的强化版：**守护进程能活过 50 分钟是跳过器给的，不是板子自己的进度**。此后 27 轮全部花在 Data 这一支上，到第 315 轮为止。这一节记四件事：读数通道又加了哪些硬定律、一把不靠读图的尺子、Data 轴上第一次把死亡往后推、以及跨轮比读数的两条新定律。
+
+**1）读数通道（识图端点）在本机本帧上被逼出来的几条，全部可复现**
+
+- **必须 `temperature=0`。**默认温度下屏摄必进复读洪水（几百个 `f=3+`、几百个 `* * *`）；改成直连同一网关、`temp 0 / top_k 1 / repetition_penalty 1.08`、单轮无历史之后，同一张图 **5.9 秒**出 28 行连续逐字。承重读数只走这条通道。
+- **报表块在照片里是斜的**（拍摄俯仰角）。同一裁框上面的行丢标签（`crash1:` 读成 `ash1:`）、下面的行标签完好。用两条竖带做互相关实测：整块倾角 **1.18°**、左侧行距 **≈30 px**（另一次量到 14~15 px，行距与 y 常量每轮重测）⇒ 一个固定 x 治不了，要标签用一个 x、要行尾用另一个 x，两种几何各出一帧。
+- **窄带在本通道不可用。**高 ≤200 px 的窄条会洪泛（`crop=2200:170` 吐 `/dev/ideN`、`crop=3500:230` 吐 `qwertyuiop…`）；高 ≤44 px 的窄条连 `temp 0` 也读成空。只有 **1000 px 高**的宽裁框可信；本轮用的几何是 `crop=3600:1000:400:1990,scale=2450:-1`。
+- **洪水按通道状态算，不按图算。**同一张图、同一句问法，连着五次进洪水，延迟从 11.1 秒漂到 18 秒，十几分钟后自愈 ⇒ 「第二帧证据」必须换**另一张照片**，重读同一张只算通道状态。
+- **同一行在不同帧可能整行掉。**`crashN` 在同一轮的 2730 帧三种读法全掉、2830 帧逐字出现 ⇒ **掉行不等于那格是空的**。
+- **成对的两格不能靠配对承重。**普查的两行在本通道五帧一致地把后一条的内容排在前面，而内核格式串固定先 `m` 后 `d`；标签还被读成根本不存在的名字 ⇒ 承重改用同一屏另一行长行里的结构见证，普查只用来取「屏上出现过哪些值」这个集合。
+
+**2）一把不靠读图的尺子：宕机报表在屏上停多久**
+
+`scripts/xnu-panic-screen.c` 里的四档是定值（读赋值，不读注释）：`code ≥ 200` ＝ 300 秒；`100..199` ＝ `2600 + 20*(code-100)`；`20..99` ＝ `1290 + 40*(code-20)`；`< 20` ＝ `150 + 150*code`。相邻档之间至少差 270 秒，所以 **`停留 = 跳回 el − 渲染帧 el`** 就能定档（只有同一台机器、同一条拍照链之间可比）。用它我们量到：第 305 轮落 300 秒档（`code ≥ 200`）；第 307、313、314、315 轮落 `code = 20` 的 1290 秒档＝**「停住但没给出判决码」**，这不是同一堵墙的延迟版。第 314、315 两轮的跳回 `el` 分别是 4046、4041，差 5 秒＝同一档内的必然结果，不能当疗效读。
+
+**3）Data 这一支：传输、挂载、然后才是内容**
+
+| 步 | 轮次 | 读数 |
+| --- | --- | --- |
+| 传输 | 306／308 | 512 MiB 的 raw 容器被厂商固件的硬门拒收；打包成 `.dbr` 之后到达，但第 308 轮 `READ el=216`＝内核没把 launchd 带起来＝传输失败、不是开机结果 |
+| 挂载 | 312 | RamBlock 侧第一次全通：`rb : k=1 b=513 s=1 v=1` ＋ `bm=3f`（六颗盘位都在），同屏长行的六项从哨兵值变成真值。**但挂上去用的是「最高下标」`/dev/disk5`，不是按卷 UUID 认领的那颗**，`mount` 返回 errno 2（ENOENT） |
+| 挂载（改一行） | 313 | `kern_exec.c:10286` 改为优先使用 UUID 认领返回的路径 ⇒ `m=0`、`p=/dev/disk5s1`、普查里出现 `g=512`＝**治疗第一次真到达**。代价是死亡点从 ≈66 分钟**提前**到 ≈4 分 57 秒 ⇒ 问题从「挂不上」换成「挂上的这颗太瘦」 |
+| 内容 | 314 | 同一颗容器**就地**加四样（`.AppleSetupDone`、`dslocal/nodes/Default`、`ConfigurationProfiles`、`keybags/systembag.kb`），容器／卷 UUID 与 logical 容量逐字未动 ⇒ 死亡从 `00:04:57` 推到 **`00:28:49`（≈5.8 倍）**＝**治疗第一次把死亡往后推**。仍未回到旧墙带（旧墙＝第 312 轮的 `01:06:51`） |
+| 内容（再加） | 315 | 再补五颗官方首装偏好 plist ⇒ 死亡**提前**到 `00:23:39`，早于事前排定的阈值 `00:26:49` ⇒ **这五颗里至少一颗有害**，按事先写好的嫌疑序逐颗回收（嫌疑最大的是六键的那颗 `com.apple.springboard`，因为它带了会改监督行为的 `BKNoWatchdogs`） |
+
+**4）跨轮比读数的两条新定律**
+
+- **环尾时间戳的日期形态会跨轮换。**第 296–313 轮屏上是 `1970-01-01 HH:MM:SS`（UTC 形态），第 314、315 轮变成 `1969-12-31 16:MM:SS`（UTC−8 形态）⇒ **不许拿 `HH:MM` 直接跨轮比**。裁决靠物理约束：渲染帧的 `el` 就是开机时长的上限（本轮 `el ∈ (2703, 2766]`＝最多 ≈46 分钟），所以「16 小时 23 分」这一种读法当场判死，只剩「UTC−8、开机时长 23 分 39 秒」。
+- **有一条到达见证不依赖表头标签。**长行里那格 `h=` 打的是种子镜像 SHA-256 的前 8 位：`fa40aedc`（第 312、313 轮那颗）→ `92aff9fa`（第 314 轮）→ `b57b762b`（第 315 轮）。三轮换三颗种子，它跟着换；因此「板子载的是哪一颗种子」这件事可以脱离表头标签独立确认。
+
 ## 8. 这一周在生态里查到的东西
 
 - **同代 peer 里没有谁走到过我们当前这一段。**离得最近的那台（同 OS build 21H461、同 SM8750 家族，
@@ -352,6 +394,8 @@ English version: **[README.md](README.md)**
   从 `cannot publish the payload` 变成 `OKAY`、菜单里出现 `xnu` 条目；XNU 日志一条都还没有。跑得最远的
   那台（同一块平板，`lenzhang/UniXNU-xiaomipad8pro`）跑的是 **macOS 27.3**，root 和 Data 在真 UFS 上、
   Adreno 830 已经在合成桌面——那是另一条 OS 线。所以**没有配置可以抄**。
+- **上面那条只对 SM8750 成立（11-16 更正）。**同一个 OS build（`ipados-17.7.11-21H461`）在 **SM8250** 上已经有一条 `implemented` 的设备记录（`alioth.toml`：launchd ＋ 锁屏 ＋ 触摸 ＋ GPU）。三份记录（`alioth`／`munch`／`sirius`）的共同口径＝**Data 必须走 RamBlock，不是 `/dev/md0`**，而我们缺的正是 `CONFIG_XNU_OWNER_DATA_MOUNT`；`packed_data_ramdisk = true` 时由内核自己读打包的 extent 表（它们把 3 GiB logical 打成 1.2 MB）。所以「配方不能抄」这句话，范围要缩小到同代。
+- **一台同 SoC 的机器从另一条路进了 iOS 系统。**`superboyyy/hakios-arm64e-dada` 在小米 15（代号 dada，**SM8750**，和我们同一代）上跑 iOS 26.6.2 的 **arm64e** 用户态，作者报告「能进主屏幕、触摸可用、按需读写闪存」，8 个核全起、用硬件指针认证。它和我们的重合度是逐项量过的：CPU 的 MPIDR 拓扑、GIC 的两个地址、DRAM 基址、UFS 控制器与 PHY 偏移、显示控制器 `@ae00000` 及其 `qcom,sde-sspp-off`／`qcom,sde-ctl-off` 两张表、**厂商 UEFI 留给我们的那块 `cont_splash_region 0xfc800000 / 43 MiB`**、串口 UART7 `0xa9c000` 全部相同；而且它的 UEFI 就是我们每天 `fastboot boot` 的那棵树——它 `uefi-dada/BASE` 里钉的 commit 与我们本地 HEAD **逐字同一颗 `794a844`**。真实差异＝面板分辨率与 DDIC、触摸厂商（Goodix 对 Synaptics）、OS 世代与架构（arm64 iPadOS 17.7.11 对 arm64e iOS 26）、存储布局（它自建一颗 20 GiB 的 `darwin` 分区当唯一可写目标 ＋ 把 iOS 镜像放进 Android DSU 槽，对 我们的 userdata 窗口 ＋ 512 MiB 内存种子）、启动期的块 IO 由 UEFI 代答、bootimg header v4（我们 header_version=0）。**关键点：它不是越过我们这堵用户态墙，是绕开**——换了一代用户态、块 IO 不经过内核的 UFS 驱动、可写目标是块真分区。
 - **同步上游的代价（实测，不是猜）。**那两笔「发布持久化 APFS 根容器」（`1fbf7a4` ＋71 行，
   `00a6e5d` ＋2/−71 行）在 `NativeRamBlock.cpp` 里**净零**，既不修也不坏我们的挂载路；
   `drivers/RamBlock` 的 boot-arg 改名只碰 `sheng-data-reset`，而我们从来不传。真正卡住的点在核心仓：
@@ -416,6 +460,9 @@ English version: **[README.md](README.md)**
 | **UNIXNU_elden** | `jerry-2009` | <https://github.com/jerry-2009/UNIXNU_elden.git> | 做配置对比。它的「256 MiB 窗口」和另一家说法相反，我们没采用——从别人仓里转述来的说法不算证据 |
 | **songyuan-device** | `aogg2023` | <https://github.com/aogg2023/songyuan-device.git> | 我们一个构建侧检查脚本的出处 |
 | **UniXNU-dada**／**UniXNU-dada2**／**UniXNU-hummer**／**UniXNU-myron**／**UniXNU-sm8550-common** | `7Night-kqx`／`Nanawwa`／`2426120557`／`zg7681`／UniXNU 组织 | <https://github.com/7Night-kqx/UniXNU-dada.git>、<https://github.com/Nanawwa/UniXNU-dada2.git>、<https://github.com/2426120557/UniXNU-hummer.git>、<https://github.com/zg7681/UniXNU-myron.git>、<https://github.com/UniXNU/UniXNU-sm8550-common.git> | 都 clone 并搜索过，没有启用它们的东西。`UniXNU-myron` 是 SM8850／`canoe`，和我们不同代，配置不可比 |
+
+| **hakios-arm64e-dada** | `superboyyy` | <https://github.com/superboyyy/hakios-arm64e-dada> | 小米 15（dada／SM8750）上跑 iOS 26 arm64e 的那条线，本地 clone 于 HEAD `f1ae906`（无 release、无 tag）。我们取的：`base/common/devices/dada.conf` 与 `dada.platform.c` 的地址表（拿来和我们 live dtb 逐格对）、`base/docs/PORTING.md` 的移植顺序、`kernel/xnu-12377.121.6-dada.patch`（3,447,829 字节，在全新 Apple tag 上 `rej=0`、改动 171 个文件、11 颗 `hakios_dada_*` 驱动）、`tools/darwin-write.py` 里那颗 `darwin` 分区的几何 |
+| **hakios-xnu-kernel**（HakiOS 上游） | OOSEX GANG（`oosexgang`） | <https://github.com/oosexgang/hakios-xnu-kernel> | 上面那条的基础：自研 EFI 引导器（`xnuloader/loader.c`，201 KB）、Mu-Silicium 移植、Apple 闭源驱动的替代件、把 iOS 从 IPSW 里取出来的脚本。两个仓里都不含任何 Apple／高通／小米二进制或固件 |
 
 ### 第三方工具与内容
 

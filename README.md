@@ -2,7 +2,7 @@
 
 中文全文：**[README.zh.md](README.zh.md)**
 
-**Nine days, ~250 numbered board rounds, one behavioural change per round, ~51 minutes of board time per
+**Fourteen days, 315 numbered board rounds, one behavioural change per round, ~51 minutes of board time per
 change.** Progress report plus six questions for maintainers and a full attribution list (§10). Every number
 below is measured, not recalled; where a number changed between rounds, both values are given.
 
@@ -29,9 +29,11 @@ believed for a week:
 | round | one build + one boot on the board + one read of the result |
 | fire | run the built `boot.img` on the board once with `fastboot boot` |
 | Data seed | the disk image we hand to XNU as the Data volume |
-| report page | the fixed diagnostic block XNU prints on panic; it stays on screen for 300 s |
+| report page | the fixed diagnostic block XNU prints on panic; how long it stays on screen is set by the panic code (four bands, §7d.2) |
 | console-tail page | the screen before the panic, filled with repeating console output |
 | control value | a cell whose expected value we already know, used to test the reading channel |
+| arrival witness | a few cells whose only job is to prove that this round's change really reached the board; unless they match verbatim we may not claim a treatment effect |
+| dwell | `hop el − painted-frame el`; since the on-screen dwell is a constant chosen by the panic code, it works as a measuring stick that needs no image reading |
 | hop | the moment the board returns to fastboot after the panic |
 | provider / publisher | the two halves of XNU's IOReport mechanism (Apple's own terms) |
 
@@ -53,6 +55,17 @@ Not published: the 234 intermediate boot images from rounds up to 250 (29 GB; on
 backup of `userdata`. For those, `manifest-sha256.txt` gives the hash and `FLASHING.md` §5 gives the
 command that produced them — with the caveat that the kernel build is not byte-reproducible, so the
 hash identifies a binary rather than a source-to-binary guarantee.
+
+**The 65 rounds after 11-13 (rounds 251-315).** Their intermediate boot images are unpublished too and still
+sit on the build machine; their photos, pre-registered criteria files (`hdrNNN.txt`, append-only once fired)
+and closing records live in the same task directory, and this report carries only the conclusions (§7d). The
+line was **paused on 2026-11-17** - not abandoned: same board, same method, to be resumed. Before pausing, the
+parts that cannot be regenerated were backed up twice: `/home/dong/backup/warsaw-20261117/` on the build
+machine (12 MB, a 62-line manifest, holding the diffs of 20 submodules plus a 127 MB binary diff of the kernel
+work tree), and on the Windows side a 112,635,500-byte text snapshot plus a 5,104,642-byte notes snapshot
+(both copied back into the build-machine backup directory as well). **Since the backup, the board has had zero
+writes**: the first batch of experiments for the new line all ran on the build machine, and the board is only
+waiting for one read-only partition-table snapshot.
 
 ---
 
@@ -399,6 +412,73 @@ shared cache (`MIME.framework + 0x23fb0`), and a `BL` does not touch the data pa
 above. Now that the address bucket has reproduced, the pre-registered rule points at round 284's page number rather
 than at the ESR decode.
 
+## 7d. Rounds 288-315: moving the front from "which daemon dies" to "what is actually inside Data"
+
+Round 288 raised the §7c skipper's cap from 2000 to 20000; round 289 switched it off completely as the overall
+negative control. That strengthened §7c's conclusion: **the daemons surviving 50 minutes is the skipper's
+doing, not the board's progress.** The next 27 rounds all went into the Data branch. Four things came out of
+them.
+
+**1) What the reading channel needed before we trusted it (all reproducible)**
+
+- **`temperature=0` is mandatory.** At the endpoint's default temperature a photo of the screen always falls
+  into a repetition flood (hundreds of `f=3+`, hundreds of `* * *`). With a direct connection to the same
+  gateway, `temp 0 / top_k 1 / repetition_penalty 1.08`, one turn and no history, the same photo returns 28
+  consecutive verbatim lines in **5.9 s**. Load-bearing readings only go through that channel.
+- **The report block is skewed in the photo** (camera pitch). With one crop, upper lines lose their label
+  (`crash1:` read as `ash1:`) while lower lines keep it. Cross-correlating two vertical strips measured the
+  block's tilt at **1.18°** and the left-hand line pitch at **≈30 px** (another round measured 14-15 px, so
+  pitch and the y offset are re-measured every round). One fixed x cannot fix both: use one x when you need
+  the label, another when you need the end of the line, and take one frame of each geometry.
+- **Thin strips do not work on this channel.** A strip ≤200 px tall floods (`crop=2200:170` returns
+  `/dev/ideN`, `crop=3500:230` returns `qwertyuiop…`); a strip ≤44 px tall reads as EMPTY even at `temp 0`.
+  Only a **1000 px**-tall wide crop is trustworthy - the geometry used here is
+  `crop=3600:1000:400:1990,scale=2450:-1`.
+- **The flood depends on channel state, not on the image.** The same photo and the same question flooded five
+  times in a row, with latency drifting from 11.1 s to 18 s, and it healed by itself after a quarter of an
+  hour. So a second piece of evidence must be **a different photo**; re-reading the same one only samples the
+  channel.
+- **A line can drop out of one frame and not another.** `crashN` was missing in three different readings of
+  the 2730 frame of one round and appeared verbatim in the 2830 frame ⇒ **a dropped line does not mean the
+  cell was empty.**
+- **Two adjacent cells cannot be trusted as a pair.** In this channel the census pair came out with the second
+  line's content printed before the first, consistently across five frames, while the kernel's format string
+  is fixed to `m` then `d`; labels were also read as names that do not exist. Load-bearing judgements moved to
+  a structural witness on another long line of the same screen, and the census is used only for "which values
+  appeared at all".
+
+**2) A measuring stick that needs no image reading: how long the report page stays up**
+
+The four bands in `scripts/xnu-panic-screen.c` are constants (read the assignments, not the comments):
+`code ≥ 200` = 300 s; `100..199` = `2600 + 20*(code-100)`; `20..99` = `1290 + 40*(code-20)`; `< 20` =
+`150 + 150*code`. Neighbouring bands are ≥270 s apart, so **`dwell = hop el − painted-frame el`** identifies
+the band (comparable only on the same machine and the same capture chain). With it: round 305 lands in the
+300 s band (`code ≥ 200`); rounds 307, 313, 314 and 315 land in the 1290 s band, `code = 20` = **a park without
+a verdict**, which is not the same wall merely delayed. Rounds 314 and 315 hopped at `el` 4046 and 4041 - a
+5-second difference, which is what the same band forces, not a treatment effect.
+
+**3) The Data branch: transport, then mount, then content**
+
+| Step | Rounds | Reading |
+| --- | --- | --- |
+| transport | 306 / 308 | a raw 512 MiB container is refused by a hard gate in the vendor firmware; after packing it into a `.dbr` it arrives, but round 308 gave `READ el=216` = the kernel never brought launchd up = a transport failure, not a boot result |
+| mount | 312 | the RamBlock side is fully green for the first time: `rb : k=1 b=513 s=1 v=1` plus `bm=3f` (all six disk slots present), and six fields of a structural long line on the same screen change from sentinels to real values. **But the mount we ourselves issued used the highest index, `/dev/disk5`, instead of the device claimed by volume UUID**, and `mount` returned errno 2 (ENOENT) |
+| mount, one line changed | 313 | `kern_exec.c:10286` now prefers the path returned by the UUID lookup ⇒ `m=0`, `p=/dev/disk5s1`, and the census shows `g=512`: **the first time a treatment actually reached its target**. The price: the death point moved *earlier*, from ≈66 min to ≈4 min 57 s ⇒ the question changed from "it does not mount" to "what got mounted is too thin" |
+| content | 314 | four items added **in place** to the same container (`.AppleSetupDone`, `dslocal/nodes/Default`, `ConfigurationProfiles`, `keybags/systembag.kb`), container/volume UUIDs and logical size untouched ⇒ death moved from `00:04:57` to **`00:28:49` (≈5.8×)** = **the first time a treatment pushed the death later**. Still short of the old wall band (the old wall = `01:06:51` in round 312) |
+| content, more | 315 | five more stock first-boot preference plists ⇒ death moved **earlier** to `00:23:39`, i.e. before the pre-registered threshold `00:26:49` ⇒ **at least one of those five is harmful**, to be withdrawn one at a time in the order fixed beforehand (prime suspect: the six-key `com.apple.springboard`, because it carries `BKNoWatchdogs`, which changes watchdog behaviour) |
+
+**4) Two rules for comparing readings across rounds**
+
+- **The date form of the console-tail timestamp changes between rounds.** Rounds 296-313 printed
+  `1970-01-01 HH:MM:SS` (UTC form); rounds 314 and 315 printed `1969-12-31 16:MM:SS` (UTC−8 form) ⇒
+  **`HH:MM` may not be compared across rounds as-is.** The arbitration uses a physical constraint: the painted
+  frame's `el` is an upper bound on uptime (here `el ∈ (2703, 2766]` = at most ≈46 minutes), so the
+  "16 h 23 min" reading dies on the spot and only "UTC−8, uptime 23 min 39 s" remains.
+- **One arrival witness does not depend on the header label.** The `h=` cell of the structural long line
+  carries the first 8 hex digits of the seed image's SHA-256: `fa40aedc` (the seed of rounds 312-313) →
+  `92aff9fa` (round 314) → `b57b762b` (round 315). Three rounds, three seeds, and it followed each one, so
+  "which seed the board loaded" can be confirmed without the header label.
+
 ## 8. What we found in the ecosystem this week
 
 - **No peer with the same SoC has gotten past the stage we are at.** The closest peer (same OS build 21H461,
@@ -407,6 +487,28 @@ than at the ESR decode.
   entry appearing; there is no XNU log yet. The peer that is far ahead (`lenzhang/UniXNU-xiaomipad8pro`, same
   tablet) runs **macOS 27.3** with root and Data on real UFS and an Adreno 830 compositing the desktop, i.e. a
   different OS line. So there is no configuration to copy.
+- **That first bullet only holds for SM8750 (corrected 11-16).** On **SM8250**, under the same OS build
+  (`ipados-17.7.11-21H461`), there is already an `implemented` device record (`alioth.toml`: launchd +
+  lock screen + touch + GPU). The shared reading across three records (`alioth`/`munch`/`sirius`) = **Data has
+  to go through RamBlock, not `/dev/md0`**, and what we are missing is exactly
+  `CONFIG_XNU_OWNER_DATA_MOUNT`; with `packed_data_ramdisk = true` the kernel reads the packed extent table
+  itself (they pack 3 GiB of logical into 1.2 MB). So "there is no config to copy" needs narrowing to "same
+  generation".
+- **A machine with the same SoC reached an iOS system by another route.** `superboyyy/hakios-arm64e-dada` runs
+  iOS 26.6.2 **arm64e** user space on the Xiaomi 15 (codename dada, **SM8750**, our generation); the author
+  reports "iOS 26 reaches the home screen, touch works, flash is read and written on demand", with all 8 cores
+  up using hardware pointer authentication. We measured the overlap cell by cell: identical CPU MPIDR topology,
+  both GIC addresses, DRAM base, UFS controller and PHY offsets, the display controller `@ae00000` including
+  its `qcom,sde-sspp-off`/`qcom,sde-ctl-off` tables, **the same vendor-UEFI `cont_splash_region 0xfc800000 /
+  43 MiB` window**, and the same UART7 `0xa9c000`; and its UEFI is the very tree we `fastboot boot` every
+  day - the commit pinned in its `uefi-dada/BASE` is **the same `794a844` as our local HEAD, verbatim**. The
+  real differences: panel resolution and DDIC, touch vendor (Goodix vs Synaptics), OS generation and
+  architecture (arm64 iPadOS 17.7.11 vs arm64e iOS 26), storage layout (it builds its own 20 GiB `darwin`
+  partition as the only writable target and keeps the iOS image in an Android DSU slot, whereas we use userdata
+  windows plus a 512 MiB in-RAM seed), boot-time block I/O answered by the UEFI, and bootimg header v4 (ours is
+  header_version=0). **The point: it did not cross our user-space wall, it went around it** - a different user
+  space generation, block I/O that does not pass through the kernel's UFS driver, and a real partition to write
+  to.
 - **Upstream sync cost, measured rather than guessed.** The two "publish persistent APFS root containers"
   commits (`1fbf7a4` +71 lines, `00a6e5d` +2/−71) **net to zero** in `NativeRamBlock.cpp`, so they neither fix
   nor regress our mount path. `drivers/RamBlock`'s boot-arg rename only touches `sheng-data-reset`, which we
@@ -476,6 +578,9 @@ README — none of them is written from memory.
 | **UNIXNU_elden** | `jerry-2009` | <https://github.com/jerry-2009/UNIXNU_elden.git> | comparison config. Its "256 MiB window" claim contradicted another fork's, so we did not use it: a claim quoted from a repo is not evidence |
 | **songyuan-device** | `aogg2023` | <https://github.com/aogg2023/songyuan-device.git> | source of one of our build-side check scripts |
 | **UniXNU-dada** / **UniXNU-dada2** / **UniXNU-hummer** / **UniXNU-myron** / **UniXNU-sm8550-common** | `7Night-kqx` / `Nanawwa` / `2426120557` / `zg7681` / UniXNU org | <https://github.com/7Night-kqx/UniXNU-dada.git>, <https://github.com/Nanawwa/UniXNU-dada2.git>, <https://github.com/2426120557/UniXNU-hummer.git>, <https://github.com/zg7681/UniXNU-myron.git>, <https://github.com/UniXNU/UniXNU-sm8550-common.git> | cloned and searched; nothing enabled from them. `UniXNU-myron` is SM8850 / `canoe`, a different SoC generation from ours, so its configs are not comparable |
+
+| **hakios-arm64e-dada** | `superboyyy` | <https://github.com/superboyyy/hakios-arm64e-dada> | the iOS 26 arm64e line on the Xiaomi 15 (dada / SM8750); local clone at HEAD `f1ae906` (no releases, no tags). What we took: the address tables in `base/common/devices/dada.conf` and `dada.platform.c` (compared cell by cell against our live dtb), the porting order in `base/docs/PORTING.md`, `kernel/xnu-12377.121.6-dada.patch` (3,447,829 bytes; on a fresh Apple tag it applies with `rej=0`, touches 171 files and adds 11 `hakios_dada_*` drivers), and the `darwin` partition geometry inside `tools/darwin-write.py` |
+| **hakios-xnu-kernel** (HakiOS upstream) | OOSEX GANG (`oosexgang`) | <https://github.com/oosexgang/hakios-xnu-kernel> | the base of the line above: the EFI loader (`xnuloader/loader.c`, 201 KB), the Mu-Silicium port, replacements for Apple's closed drivers, and the scripts that take iOS out of an IPSW. Neither repo contains any Apple / Qualcomm / Xiaomi binary or firmware |
 
 ### Third-party tools and content
 
